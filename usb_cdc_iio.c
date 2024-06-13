@@ -127,6 +127,7 @@ static int usb_cdc_iio_probe(struct usb_interface *interface, const struct usb_d
     return 0;
 }
 
+// Тут проблема, не правильно ресурсы освобождаются
 static void usb_cdc_iio_disconnect(struct usb_interface *interface)
 {
     struct iio_dev *indio_dev = usb_get_intfdata(interface);
@@ -151,21 +152,35 @@ static int usb_cdc_iio_read_raw(struct iio_dev *indio_dev,
 
     switch (mask) {
     case IIO_CHAN_INFO_RAW:
+    /**
+     * @brief Builds a bulk urb (USB Request Block),
+     * sends it off and waits for completion 
+     * If successful, 0. Otherwise a negative error number. 
+     * The number of actual bytes transferred will be 
+     * stored in the actual_length parameter
+     * @param usb_dev - pointer to the usb device to send the message to
+     * @param pipe - endpoint “pipe” to send the message to
+     * @param data - pointer to the data to send
+     * @param len - length in bytes of the data to send
+     * @param actual_length - pointer to a location to put the actual length transferred in bytes
+     * @param timeout - time in msecs to wait for the message to complete before timing out (if 0 the wait is forever)
+     */
         ret = usb_bulk_msg(dev->udev,
                            usb_rcvbulkpipe(dev->udev, 1),
                            dev->buffer,
                            sizeof(dev->buffer),
                            &actual_length,
                            1000); // Таймаут в миллисекундах
+        
         if (ret) {
-            return ret;
+            return ret;         // Если ошибка (не 0), то вернуть код ошибки
         }
 
         if (actual_length < sizeof(dev->buffer)) {
-            return -EIO; // Возвращаем ошибку, если не получено ожидаемое количество данных
+            return -EIO;        // Возвращаем ошибку, если не получено ожидаемое количество данных
         }
-
-        *val = dev->buffer[0]; // Пример: возвращаем первый байт прочитанных данных
+        // Елси нет ошибок
+        *val = dev->buffer[0];  // Пример: возвращаем первый байт прочитанных данных
         return IIO_VAL_INT;
 
     default:

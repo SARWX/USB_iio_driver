@@ -30,15 +30,13 @@ MODULE_INFO(retpoline, "Y");
 static const struct modversion_info ____versions[]
 __used __section("__versions") = {
 	{ 0xb1ad28e0, "__gnu_mcount_nc" },
-	{ 0x503d6783, "usb_register_driver" },
 	{ 0xefd6cf06, "__aeabi_unwind_cpp_pr0" },
-	{ 0xef961956, "iio_device_unregister" },
-	{ 0x7981293a, "usb_put_dev" },
-	{ 0x37a0cba, "kfree" },
+	{ 0x503d6783, "usb_register_driver" },
 	{ 0x92997ed8, "_printk" },
 	{ 0xcf6c5808, "devm_iio_device_alloc" },
 	{ 0x4128d092, "usb_get_dev" },
 	{ 0xf864e4b0, "__devm_iio_device_register" },
+	{ 0x7981293a, "usb_put_dev" },
 	{ 0xe281a3d2, "usb_bulk_msg" },
 	{ 0x3ea1b6e4, "__stack_chk_fail" },
 	{ 0x8f678b07, "__stack_chk_guard" },
@@ -50,4 +48,4 @@ MODULE_INFO(depends, "industrialio");
 
 MODULE_ALIAS("usb:v0483pF125d*dc*dsc*dp*ic*isc*ip*in*");
 
-MODULE_INFO(srcversion, "81172313BD4B82B54EB0577");
+MODULE_INFO(srcversion, "BF0702EBD1D002984F19E64");

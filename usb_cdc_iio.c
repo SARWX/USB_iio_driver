@@ -85,7 +85,7 @@ static int usb_cdc_iio_probe(struct usb_interface *interface, const struct usb_d
 
 
     printk(KERN_INFO "Try to allocate mem for indio_dev\n");
-    indio_dev = devm_iio_device_alloc(&interface->dev, sizeof(struct usb_cdc_iio_dev));
+    indio_dev = devm_iio_device_alloc(&interface->dev, sizeof(struct usb_cdc_iio_dev));     // Managed iio_device_alloc. iio_dev allocated with this function is automatically freed on driver detach
  //   indio_dev = iio_device_alloc(dev, sizeof(*dev));
     if (!indio_dev) 
     {
@@ -115,7 +115,8 @@ static int usb_cdc_iio_probe(struct usb_interface *interface, const struct usb_d
 
     usb_set_intfdata(interface, dev);
     printk(KERN_INFO "We are going to register iio device\n");
-    ret = devm_iio_device_register(&interface->dev, indio_dev);
+    ret = devm_iio_device_register(&interface->dev, indio_dev);     // Managed iio_device_register. The IIO device registered with this function is automatically unregistered on driver detach
+
     if (ret) {
         printk(KERN_ERR "iio_device_register failed with error %d\n", ret);
         usb_set_intfdata(interface, NULL);
@@ -130,13 +131,13 @@ static int usb_cdc_iio_probe(struct usb_interface *interface, const struct usb_d
 // Тут проблема, не правильно ресурсы освобождаются
 static void usb_cdc_iio_disconnect(struct usb_interface *interface)
 {
-    struct iio_dev *indio_dev = usb_get_intfdata(interface);
-    struct usb_cdc_iio_dev *dev = iio_priv(indio_dev);
+    // struct iio_dev *indio_dev = usb_get_intfdata(interface);
+    // struct usb_cdc_iio_dev *dev = iio_priv(indio_dev);
 
-    iio_device_unregister(indio_dev);
-    usb_put_dev(dev->udev);  // Уменьшаем счетчик ссылок на USB устройство
+//    iio_device_unregister(indio_dev);
     usb_set_intfdata(interface, NULL); // Устанавливаем интерфейсные данные в NULL
-    kfree(dev); // Освобождаем память, выделенную для структуры usb_cdc_iio_dev
+ //   usb_put_dev(dev->udev);  // Уменьшаем счетчик ссылок на USB устройство
+//    kfree(dev); // Освобождаем память, выделенную для структуры usb_cdc_iio_dev
 }
 
 
@@ -180,7 +181,14 @@ static int usb_cdc_iio_read_raw(struct iio_dev *indio_dev,
             return -EIO;        // Возвращаем ошибку, если не получено ожидаемое количество данных
         }
         // Елси нет ошибок
-        *val = dev->buffer[0];  // Пример: возвращаем первый байт прочитанных данных
+        // Возвращаем все данные
+        // for (int i = 0; i < actual_length; i++) {
+        //     val[i] = dev->buffer[i];
+        // }
+        // Проба
+        *val = dev->buffer[0];
+        // проба
+
         return IIO_VAL_INT;
 
     default:

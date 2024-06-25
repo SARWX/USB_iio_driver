@@ -12,6 +12,7 @@
 
 #define VENDOR_ID 0x0483        // STMicroelectronics 
 #define PRODUCT_ID 0xf125       // 
+#define IIO_BUFFER_SIZE 128     // Размер пакчи изммерений, которая передаётся по USB
 
 static int usb_cdc_iio_read_raw(struct iio_dev *indio_dev,
                                 struct iio_chan_spec const *chan,
@@ -19,11 +20,19 @@ static int usb_cdc_iio_read_raw(struct iio_dev *indio_dev,
                                 int *val2,
                                 long mask);
 
+// static int usb_cdc_iio_read_raw_multi(struct iio_dev *indio_dev,
+//                                       struct iio_chan_spec const *chan,
+//                                       int max_len,
+//                                       int *vals,
+//                                       int *val_len,
+//                                       long mask);
+
 // /**
 //  * @brief Структура, описывающая драйвер
 //  */
 static const struct iio_info usb_cdc_iio_info = {			// Вот в этой структуре мы задаем интерфейс к нашему indio_dev
 	.read_raw = usb_cdc_iio_read_raw,						// функция для чтения сырых данных
+//    .read_raw_multi = usb_cdc_iio_read_raw_multi,           // функция для чтения всей пачки измерений
 };
 
 /** 
@@ -174,20 +183,27 @@ static int usb_cdc_iio_read_raw(struct iio_dev *indio_dev,
                            1000); // Таймаут в миллисекундах
         
         if (ret) {
-            return ret;         // Если ошибка (не 0), то вернуть код ошибки
+            return ret; // Если ошибка (не 0), то вернуть код ошибки
         }
 
-        if (actual_length < sizeof(dev->buffer)) {
-            return -EIO;        // Возвращаем ошибку, если не получено ожидаемое количество данных
+        if (actual_length > sizeof(dev->buffer)) {
+            return -EIO; // Возвращаем ошибку, если получено больше данных, чем ожидается
         }
-        // Елси нет ошибок
-        // Возвращаем все данные
+
+        // Проверяем, что val имеет достаточный размер
+        if (!val) {
+            return -ENOMEM; // Недостаточно памяти
+        }
+        if (actual_length >= sizeof(uint8_t)) {
+            *val = *((uint8_t *)dev->buffer); // Assuming dev->buffer holds integer data
+        } else {
+            return -EIO; // Data received doesn't match expected size
+        }
+
+        // // Копируем данные в val
         // for (int i = 0; i < actual_length; i++) {
         //     val[i] = dev->buffer[i];
         // }
-        // Проба
-        *val = dev->buffer[0];
-        // проба
 
         return IIO_VAL_INT;
 
@@ -195,6 +211,67 @@ static int usb_cdc_iio_read_raw(struct iio_dev *indio_dev,
         return -EINVAL;
     }
 }
+
+
+// static int usb_cdc_iio_read_raw_multi(struct iio_dev *indio_dev,
+//                                       struct iio_chan_spec const *chan,
+//                                       int max_len,
+//                                       int *vals,
+//                                       int *val_len,
+//                                       long mask)
+// {
+//     struct usb_cdc_iio_dev *dev = iio_priv(indio_dev);
+//     int ret, actual_length;
+
+//     switch (mask) {
+//     case IIO_CHAN_INFO_RAW:
+//         /**
+//          * @brief Builds a bulk urb (USB Request Block),
+//          * sends it off and waits for completion 
+//          * If successful, 0. Otherwise a negative error number. 
+//          * The number of actual bytes transferred will be 
+//          * stored in the actual_length parameter
+//          * @param usb_dev - pointer to the usb device to send the message to
+//          * @param pipe - endpoint “pipe” to send the message to
+//          * @param data - pointer to the data to send
+//          * @param len - length in bytes of the data to send
+//          * @param actual_length - pointer to a location to put the actual length transferred in bytes
+//          * @param timeout - time in msecs to wait for the message to complete before timing out (if 0 the wait is forever)
+//          */
+//         ret = usb_bulk_msg(dev->udev,
+//                            usb_rcvbulkpipe(dev->udev, 1),
+//                            dev->buffer,
+//                            sizeof(dev->buffer),
+//                            &actual_length,
+//                            1000); // Таймаут в миллисекундах
+        
+//         if (ret) {
+//             return ret;         // Если ошибка (не 0), то вернуть код ошибки
+//         }
+
+//         if (actual_length < sizeof(dev->buffer)) {
+//             return -EIO;        // Возвращаем ошибку, если не получено ожидаемое количество данных
+//         }
+
+//         // Проверяем, что max_len позволяет сохранить все данные
+//         if (actual_length > max_len) {
+//             return -ENOMEM;     // Недостаточно памяти для хранения данных
+//         }
+
+//         // Копируем данные из буфера устройства в массив значений
+//         for (int i = 0; i < actual_length; i++) {
+//             vals[i] = dev->buffer[i];
+//         }
+
+//         // Устанавливаем длину возвращенных данных
+//         *val_len = actual_length;
+
+//         return IIO_VAL_INT_MULTIPLE;
+
+//     default:
+//         return -EINVAL;
+//     }
+// }
 
 
 

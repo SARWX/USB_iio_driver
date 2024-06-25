@@ -48,4 +48,4 @@ MODULE_INFO(depends, "industrialio");
 
 MODULE_ALIAS("usb:v0483pF125d*dc*dsc*dp*ic*isc*ip*in*");
 
-MODULE_INFO(srcversion, "BF0702EBD1D002984F19E64");
+MODULE_INFO(srcversion, "B27DB3A2CB08DA3B506DE8A");

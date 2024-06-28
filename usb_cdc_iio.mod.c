@@ -30,17 +30,25 @@ MODULE_INFO(retpoline, "Y");
 static const struct modversion_info ____versions[]
 __used __section("__versions") = {
 	{ 0xb1ad28e0, "__gnu_mcount_nc" },
-	{ 0xefd6cf06, "__aeabi_unwind_cpp_pr0" },
 	{ 0x503d6783, "usb_register_driver" },
+	{ 0xefd6cf06, "__aeabi_unwind_cpp_pr0" },
 	{ 0x92997ed8, "_printk" },
 	{ 0xcf6c5808, "devm_iio_device_alloc" },
 	{ 0x4128d092, "usb_get_dev" },
+	{ 0xfe988cbb, "__devm_iio_trigger_alloc" },
+	{ 0x3fcd9775, "iio_trigger_register" },
 	{ 0xf864e4b0, "__devm_iio_device_register" },
 	{ 0x7981293a, "usb_put_dev" },
+	{ 0xc5171ad5, "usb_alloc_urb" },
+	{ 0x5dc82014, "usb_submit_urb" },
+	{ 0xa96d0658, "usb_kill_urb" },
+	{ 0x37a0cba, "kfree" },
+	{ 0x8cc133d6, "usb_free_urb" },
 	{ 0xe281a3d2, "usb_bulk_msg" },
 	{ 0x3ea1b6e4, "__stack_chk_fail" },
 	{ 0x8f678b07, "__stack_chk_guard" },
 	{ 0xbbc6a8fe, "usb_deregister" },
+	{ 0x4b5dd0ff, "iio_trigger_validate_own_device" },
 	{ 0x78a319e7, "module_layout" },
 };
 
@@ -48,4 +56,4 @@ MODULE_INFO(depends, "industrialio");
 
 MODULE_ALIAS("usb:v0483pF125d*dc*dsc*dp*ic*isc*ip*in*");
 
-MODULE_INFO(srcversion, "B27DB3A2CB08DA3B506DE8A");
+MODULE_INFO(srcversion, "90D2B74B37C37A1D04BF826");

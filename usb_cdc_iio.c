@@ -339,7 +339,7 @@ static int usb_cdc_iio_probe(struct usb_interface *interface, const struct usb_d
                                                                     // (это нужно для того, чтобы понять когда можно освобождать ресурсы)
     dev->indio_dev = indio_dev;                                     // Связываем наше устройство с IIO слоем
 
-    indio_dev->name = "usb_cdc_iio";            // Как будет отображаться в логах и системе
+    // indio_dev->name = "usb_cdc_iio";            // Как будет отображаться в логах и системе
 //  //   indio_dev->info = &usb_cdc_iio_info;        // Эта структура определяет, как ядро будет взаимодействовать с устройством для выполнения операций чтения, записи и других
 //     indio_dev->modes = INDIO_DIRECT_MODE;       // устройство поддерживает прямой доступ к данным без необходимости буферизации или других сложных режимов работы
 
@@ -351,41 +351,58 @@ static int usb_cdc_iio_probe(struct usb_interface *interface, const struct usb_d
 	indio_dev->num_channels = ARRAY_SIZE(usb_cdc_iio_channels);
     usb_set_intfdata(interface, dev);
 
-    // Настроим тригер
- //   struct iio_trigger *usb_cdc_iio_trig = 0;
-    dev->trig = devm_iio_trigger_alloc(&interface->dev, indio_dev->name);       // Выделим память под триггер        TODO: в имени форматную строку, типа "%s-dev%d", indio_dev->name, iio_device_id(indio_dev)
-                                                                                    //                                      чтобы можно было несколько одинаковых устройств использовать
-    if (!dev->trig) 
-    {
-        printk(KERN_INFO "Unsucessful allocation triger ERROR\n");
-        return -ENOMEM;
-    }
-    printk(KERN_INFO "Sucessful allocation triger\n");
-    // Добавим опции триггеру:
-    dev->trig->ops = &usb_cdc_iio_trigger_ops;
+// Настроим триггер
+static int uniq_id = 0;
+dev->trig = devm_iio_trigger_alloc(&interface->dev, "trig%s-dev%d", indio_dev->name, uniq_id++); // Выделим память под триггер
+if (!dev->trig) {
+    printk(KERN_INFO "Unsucessful allocation trigger ERROR\n");
+    return -ENOMEM;
+}
+printk(KERN_INFO "Successful allocation trigger\n");
 
+// Добавим опции триггеру:
+dev->trig->ops = &usb_cdc_iio_trigger_ops;
 
+// Свяжем триггер с нашим устройством
+iio_trigger_set_drvdata(dev->trig, dev);
 
-    iio_trigger_set_drvdata(dev->trig, dev);
+// Зарегистрируем триггер в системе IIO
+    ret = iio_trigger_register(dev->trig);
+if (ret) {
+    printk(KERN_INFO "Failed to register trigger\n");
+    return ret;
+}
+
+printk(KERN_INFO "Trigger registered successfully\n");
+
+// // Зарегистрируем устройство IIO
+// ret = devm_iio_device_register(&interface->dev, indio_dev);
+// if (ret) {
+//     printk(KERN_INFO "Failed to register IIO device\n");
+//     return ret;
+// }
+
+// printk(KERN_INFO "IIO device registered successfully\n");
+
 
 		/*
 		 * The device generates interrupts as long as it is powered up.
 		 * Some platforms might not allow the option to power it down so
 		 * don't enable the interrupt to avoid extra load on the system
 		 */
-		ret = devm_request_irq(&interface->dev, interface_to_usbdev(interface)->irq, usb_cdc_iio_irq_handler,
-                                IRQF_TRIGGER_FALLING | IRQF_NO_AUTOEN,
-                                dev_name(&interface->dev), dev->trig);
-        if (ret < 0) {
-            printk(KERN_ERR "devm_request_irq failed with error %d\n", ret);
-            return ret;
-        }
+		// ret = devm_request_irq(&interface->dev, interface_to_usbdev(interface)->irq, usb_cdc_iio_irq_handler,
+        //                         IRQF_TRIGGER_FALLING | IRQF_NO_AUTOEN,
+        //                         dev_name(&interface->dev), dev->trig);
+        // if (ret < 0) {
+        //     printk(KERN_ERR "devm_request_irq failed with error %d\n", ret);
+        //     return ret;
+        // }
 
-        ret = devm_iio_trigger_register(&interface->dev, dev->trig);
-        if (ret) {
-            printk(KERN_ERR "devm_iio_trigger_register failed with error %d\n", ret);
-            return ret;
-        }
+        // ret = devm_iio_trigger_register(&interface->dev, dev->trig);
+        // if (ret) {
+        //     printk(KERN_ERR "devm_iio_trigger_register failed with error %d\n", ret);
+        //     return ret;
+        // }
 
 
 
@@ -412,15 +429,23 @@ static int usb_cdc_iio_probe(struct usb_interface *interface, const struct usb_d
     }
 
     printk(KERN_INFO "iio_device_register successful\n");
+
+    printk(KERN_INFO "Start trigger\n");
+
     return 0;
 }
 
 // Тут проблема, не правильно ресурсы освобождаются
 static void usb_cdc_iio_disconnect(struct usb_interface *interface)
 {
-    usb_cdc_iio_stop_continuous_read(dev);
-    // struct iio_dev *indio_dev = usb_get_intfdata(interface);
+    struct usb_cdc_iio_dev *dev;
     struct iio_dev *indio_dev = usb_get_intfdata(interface);
+    // struct iio_dev *indio_dev;
+    // int ret = 0;
+    // static void usb_cdc_iio_stop_continuous_read(struct usb_cdc_iio_dev *dev);
+    // struct iio_dev *indio_dev = usb_get_intfdata(interface);
+    dev = iio_priv(indio_dev);
+    usb_cdc_iio_stop_continuous_read(dev);
 
 //    iio_device_unregister(indio_dev);
     // usb_cdc_iio_buffer_cleanup(indio_dev);

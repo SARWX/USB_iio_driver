@@ -134,6 +134,7 @@ struct usb_cdc_iio_dev {
     struct iio_trigger *trig;
     char buffer[64]; // Пример объявления буфера размером 64 байта, замените на нужный вам размер
     struct urb *urb;
+    bool reading_active;
 };
 
 
@@ -236,7 +237,8 @@ static void usb_cdc_iio_urb_complete(struct urb *urb)
     struct usb_cdc_iio_dev *dev = urb->context;
 
     if (urb->status) {
-        printk(KERN_ERR "URB completion error: %d\n", urb->status);
+        if (urb->status != -ENOENT)  // Пропустить ошибку ENOENT (No such file or directory)
+            printk(KERN_ERR "URB completion error: %d\n", urb->status);
         return;
     }
 
@@ -244,45 +246,60 @@ static void usb_cdc_iio_urb_complete(struct urb *urb)
     // Например: iio_push_to_buffers_with_timestamp(dev->indio_dev, dev->buffer, iio_get_time_ns());
 
     // Перезапуск URB для непрерывного чтения данных
-    usb_submit_urb(urb, GFP_ATOMIC);
+    if (dev->reading_active == true)
+    {
+        if (!usb_submit_urb(urb, GFP_ATOMIC))
+            printk("URB resubmitted\n");
+    }
 }
 
 // Запуск непрерывного чтения данных по USB
 static void usb_cdc_iio_start_continuous_read(struct usb_cdc_iio_dev *dev) 
 {
     int ret;
-
+    dev->reading_active = true;
     dev->urb = usb_alloc_urb(0, GFP_KERNEL);
     if (!dev->urb) {
         printk(KERN_ERR "Failed to allocate URB\n");
         return;
     }
 
-    // dev->buffer = kzalloc(64, GFP_KERNEL); // Предполагаемый размер буфера  
-    // if (!dev->buffer) {
-    //     usb_free_urb(dev->urb);
-    //     printk(KERN_ERR "Failed to allocate buffer\n");
-    //     return;
-    // }
-
     usb_fill_bulk_urb(dev->urb, dev->udev, usb_rcvbulkpipe(dev->udev, 1),
                       dev->buffer, 64, usb_cdc_iio_urb_complete, dev);
 
     ret = usb_submit_urb(dev->urb, GFP_KERNEL);
     if (ret) {
-        kfree(dev->buffer);
         usb_free_urb(dev->urb);
         printk(KERN_ERR "Failed to submit URB: %d\n", ret);
     }
+    else {
+        printk("URB submitted successfully\n");
+    }
 }
+
 
 // Остановка непрерывного чтения данных по USB
 static void usb_cdc_iio_stop_continuous_read(struct usb_cdc_iio_dev *dev)
 {
-    usb_kill_urb(dev->urb);
-    kfree(dev->buffer);
-    usb_free_urb(dev->urb);
+    dev->reading_active = false;
 }
+
+// Прошлый вариант
+// static void usb_cdc_iio_stop_continuous_read(struct usb_cdc_iio_dev *dev)
+// {
+//     // usb_kill_urb(dev->urb);
+// //     kfree(dev->buffer);
+// //     usb_free_urb(dev->urb);
+//     if (dev->urb) {
+//             printk("Next step - usb_kill_urb\n");
+//         usb_kill_urb(dev->urb);  // Убиваем URB, чтобы он больше не вызывал обратный вызов
+//             printk("Next step - usb_free_urb\n");
+//         usb_free_urb(dev->urb);  // Освобождаем память, выделенную для URB
+//             printk("Next step - dev->urb = NULL\n");
+//         dev->urb = NULL;  // Устанавливаем указатель в NULL
+//     }
+//  }
+
 /////////////////////////////////////////////////////////////////////
 
 
@@ -324,7 +341,7 @@ static int usb_cdc_iio_probe(struct usb_interface *interface, const struct usb_d
     printk(KERN_INFO "Try to allocate mem for indio_dev\n");
     indio_dev = devm_iio_device_alloc(&interface->dev, sizeof(struct usb_cdc_iio_dev));     // Managed iio_device_alloc. iio_dev allocated with this function is automatically freed on driver detach
  //   indio_dev = iio_device_alloc(dev, sizeof(*dev));
-    if (!indio_dev) 
+    if (!indio_dev)
     {
         printk(KERN_INFO "Unsucessful allocation indio_dev ERROR\n");
         return -ENOMEM;
@@ -353,6 +370,7 @@ static int usb_cdc_iio_probe(struct usb_interface *interface, const struct usb_d
 
 // Настроим триггер
 static int uniq_id = 0;
+    printk("Try to allocate mem for trigger\n");
 dev->trig = devm_iio_trigger_alloc(&interface->dev, "trig%s-dev%d", indio_dev->name, uniq_id++); // Выделим память под триггер
 if (!dev->trig) {
     printk(KERN_INFO "Unsucessful allocation trigger ERROR\n");
@@ -363,10 +381,11 @@ printk(KERN_INFO "Successful allocation trigger\n");
 // Добавим опции триггеру:
 dev->trig->ops = &usb_cdc_iio_trigger_ops;
 
-// Свяжем триггер с нашим устройством
+// Поместим в наш триггер указатель на устройство, это может понадобиться в дальнейшем
 iio_trigger_set_drvdata(dev->trig, dev);
 
 // Зарегистрируем триггер в системе IIO
+    printk("Try to register trigger\n");
     ret = iio_trigger_register(dev->trig);
 if (ret) {
     printk(KERN_INFO "Failed to register trigger\n");
@@ -374,6 +393,7 @@ if (ret) {
 }
 
 printk(KERN_INFO "Trigger registered successfully\n");
+
 
 // // Зарегистрируем устройство IIO
 // ret = devm_iio_device_register(&interface->dev, indio_dev);
@@ -430,7 +450,11 @@ printk(KERN_INFO "Trigger registered successfully\n");
 
     printk(KERN_INFO "iio_device_register successful\n");
 
-    printk(KERN_INFO "Start trigger\n");
+    printk(KERN_INFO "Now turn on register (start continuous read)\n");
+    usb_cdc_iio_start_continuous_read(dev);
+
+
+
 
     return 0;
 }
@@ -438,17 +462,45 @@ printk(KERN_INFO "Trigger registered successfully\n");
 // Тут проблема, не правильно ресурсы освобождаются
 static void usb_cdc_iio_disconnect(struct usb_interface *interface)
 {
-    struct usb_cdc_iio_dev *dev;
     struct iio_dev *indio_dev = usb_get_intfdata(interface);
+
+    // Проверяем, что мы получили корректный указатель
+    if (!indio_dev) {
+        printk(KERN_ERR "Invalid IIO device pointer\n");
+        return;
+    }
+
+    struct usb_cdc_iio_dev *dev = iio_priv(indio_dev);
+
+    // Проверяем, что мы получили корректный указатель
+    if (!dev) {
+        printk(KERN_ERR "Invalid USB CDC IIO device pointer\n");
+        return;
+    }
     // struct iio_dev *indio_dev;
     // int ret = 0;
     // static void usb_cdc_iio_stop_continuous_read(struct usb_cdc_iio_dev *dev);
     // struct iio_dev *indio_dev = usb_get_intfdata(interface);
-    dev = iio_priv(indio_dev);
+        printk("usb_cdc_iio_stop_continuous_read\n");
     usb_cdc_iio_stop_continuous_read(dev);
+
+    // // Освобождаем буфер, если он был выделен
+    // if (dev->buffer) {
+    //     printk("Free buffer\n");
+    //     kfree(dev->buffer);
+    //     // dev->buffer = NULL;  // Устанавливаем указатель в NULL
+    // }
+
+    // Освобождаем устройство USB
+    // if (dev->udev) {
+    //     printk("Minus usb \"dev counter\"\n");
+    //     usb_put_dev(dev->udev);
+    //     dev->udev = NULL;  // Устанавливаем указатель в NULL
+    // }
 
 //    iio_device_unregister(indio_dev);
     // usb_cdc_iio_buffer_cleanup(indio_dev);
+        printk("Interface to NULL\n");
     usb_set_intfdata(interface, NULL); // Устанавливаем интерфейсные данные в NULL
  //   usb_put_dev(dev->udev);  // Уменьшаем счетчик ссылок на USB устройство
 //    kfree(dev); // Освобождаем память, выделенную для структуры usb_cdc_iio_dev

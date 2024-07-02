@@ -73,9 +73,10 @@ struct usb_cdc_iio_dev {
     struct usb_device *udev;
     struct iio_dev *indio_dev;
     struct iio_trigger *trig;
-    char buffer[64]; // Пример объявления буфера размером 64 байта, замените на нужный вам размер
+    // char buffer[64]; // Пример объявления буфера размером 64 байта, замените на нужный вам размер
     struct urb *urb;
     bool reading_active;
+    struct iio_buffer *buffer;
 };
 
 // Набор функций для работы USB

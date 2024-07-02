@@ -91,6 +91,6 @@ static struct usb_driver usb_cdc_iio_driver = {
 
 module_usb_driver(usb_cdc_iio_driver);      // макрос регистрирует USB-драйвер в ядре Linux
 
-MODULE_AUTHOR("Ваше Имя");                  // макросы добавляют метаданные к модулю, 
-MODULE_DESCRIPTION("USB CDC IIO Driver");   // которые могут быть полезны для 
+MODULE_AUTHOR("ICV");                  // макросы добавляют метаданные к модулю, 
+MODULE_DESCRIPTION("USB CDC IIO Driver for osciloscope");   // которые могут быть полезны для 
 MODULE_LICENSE("GPL");                      // информации о модуле и лицензировании

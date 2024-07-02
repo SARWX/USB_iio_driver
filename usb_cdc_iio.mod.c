@@ -42,7 +42,7 @@ __used __section("__versions") = {
 	{ 0xcf6c5808, "devm_iio_device_alloc" },
 	{ 0x4128d092, "usb_get_dev" },
 	{ 0xfe988cbb, "__devm_iio_trigger_alloc" },
-	{ 0x3fcd9775, "iio_trigger_register" },
+	{ 0x38824869, "devm_iio_trigger_register" },
 	{ 0xf864e4b0, "__devm_iio_device_register" },
 	{ 0x7981293a, "usb_put_dev" },
 	{ 0xbbc6a8fe, "usb_deregister" },
@@ -54,4 +54,4 @@ MODULE_INFO(depends, "industrialio");
 
 MODULE_ALIAS("usb:v0483pF125d*dc*dsc*dp*ic*isc*ip*in*");
 
-MODULE_INFO(srcversion, "46C6D6B6E4556E309555F51");
+MODULE_INFO(srcversion, "84D8236B76F75EC1B86A95B");

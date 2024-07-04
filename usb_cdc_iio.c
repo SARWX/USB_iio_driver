@@ -1,3 +1,8 @@
+// Драйвер имеет зависимости от модулей:
+// industrialio и industrialio-triggered-buffer
+// Перед запуском их надо подключить командой
+// sudo modprobe ...
+
 #include <linux/module.h>                   // Модули ядра и взаимодействие с ними
 #include <linux/kernel.h>                   // Основные функции и макросы ядра
 #include <linux/usb.h>                      // Работа с USB устройствами
@@ -44,10 +49,19 @@ static const struct iio_info usb_cdc_iio_info = {			// Вот в этой стр
  */
 static const struct iio_chan_spec usb_cdc_iio_channels[] = {
 	{
-		.type = IIO_VOLTAGE,								// По нашему каналу будут передаваться значения вольтов
+		.type = IIO_VOLTAGE,								// По нашему каналу будут передаваться значения напряжения
 		.info_mask_separate = BIT(IIO_CHAN_INFO_RAW),		// Данные не надо объединять, канал возвращает raw данные
-	}
+        .scan_index = 0,
+        .scan_type = {
+            .sign = 'u',            // беззнаковый
+            .realbits = 8,          // реальное количество бит данных
+            .storagebits = 8,       // количество бит для хранения
+            .shift = 0,             // сдвиг (если требуется)
+            .endianness = IIO_LE,   // порядок байт (little-endian)
+	    }
+    }
 };
+
 
 /**
  * @brief Эта таблица содержит VID и PID, для которых
@@ -110,6 +124,16 @@ static const struct iio_trigger_ops usb_cdc_iio_trigger_ops = {
     .validate_device = iio_trigger_validate_own_device,
 };
 
+/**
+ * @brief Структура опций буфера
+ */
+ static const struct iio_buffer_setup_ops usb_cdc_iio_buffer_setup_ops = {
+    .preenable = NULL,    // Функция, вызываемая перед включением буферизации
+    .postenable = NULL,   // Функция, вызываемая после включения буферизации
+    .predisable = NULL,   // Функция, вызываемая перед выключением буферизации
+    .postdisable = NULL,  // Функция, вызываемая после выключения буферизации
+};
+
 //////////////////////// Блок работы с USB //////////////////////////
 // Завершение URB
 static void usb_cdc_iio_urb_complete(struct urb *urb)
@@ -123,7 +147,7 @@ static void usb_cdc_iio_urb_complete(struct urb *urb)
     }
 
     // Добавление данных в буфер
-    iio_push_to_buffers_with_timestamp(dev->indio_dev, dev->buffer, iio_get_time_ns());
+    iio_push_to_buffers_with_timestamp(dev->indio_dev, dev->buffer, iio_get_time_ns(dev->indio_dev));
 
     // Перезапуск URB для непрерывного чтения данных
     if (dev->reading_active == true)
@@ -213,50 +237,55 @@ static int usb_cdc_iio_probe(struct usb_interface *interface, const struct usb_d
     // Сохраним в нашем interface устройство, это понадобится при освобождении ресурсов
     usb_set_intfdata(interface, dev);
 
-
-    // Инициализация буфера
-    ret = iio_triggered_buffer_setup(indio_dev, NULL, usb_cdc_iio_trigger_handler, NULL);
-    if (ret) {
-        printk(KERN_ERR "Failed to setup triggered buffer: %d\n", ret);
-        usb_put_dev(dev->udev);
-        return ret;
-    }
-
-
-
-
     //////////// Настроим триггер ////////////
         printk("Try to allocate mem for trigger\n");
     dev->trig = devm_iio_trigger_alloc(&interface->dev, "trig%s-dev%d", indio_dev->name, uniq_id++); // Выделим память под триггер
     if (!dev->trig) {
         printk(KERN_INFO "Unsucessful allocation trigger ERROR\n");
-        iio_triggered_buffer_cleanup(indio_dev);
+        // iio_triggered_buffer_cleanup(indio_dev);
         return -ENOMEM;
     }
     printk(KERN_INFO "Successful allocation trigger\n");
-
     // Добавим опции триггеру:
     dev->trig->ops = &usb_cdc_iio_trigger_ops;
-
     // Поместим в наш триггер указатель на устройство, это понадобиться при освобождении ресурсов
     iio_trigger_set_drvdata(dev->trig, dev);
-
     // Зарегистрируем триггер в системе IIO
         printk("Try to register trigger\n");
         ret = devm_iio_trigger_register(&interface->dev, dev->trig);
     if (ret) {
         printk(KERN_INFO "Failed to register trigger\n");
-        iio_triggered_buffer_cleanup(indio_dev);
+        // iio_triggered_buffer_cleanup(indio_dev);
         return ret;
     }
     printk(KERN_INFO "Trigger registered successfully\n");
     //////////// Триггер настроен ////////////
 
+
+
+    // Инициализация буфера
+    // // ret = iio_triggered_buffer_setup(indio_dev, NULL, NULL, &usb_cdc_iio_buffer_setup_ops);  // TODO: Вот это на devm
+    // indio_dev->buffer = iio_kfifo_allocate();
+    // if (!indio_dev->buffer) {
+    //     printk(KERN_ERR "Failed to allocate kfifo buffer\n");
+    //     usb_put_dev(dev->udev);
+    //     return -ENOMEM;
+    // }
+    // Настройка буфера с использованием devm_iio_kfifo_buffer_setup
+    ret = devm_iio_kfifo_buffer_setup(&interface->dev, indio_dev, &usb_cdc_iio_buffer_setup_ops);
+    if (ret) {
+        printk(KERN_ERR "Failed to setup kfifo buffer: %d\n", ret);
+        usb_put_dev(dev->udev);
+        return ret;
+    }
+
+
+    // Регистрация устройства
     printk(KERN_INFO "We are going to register iio device\n");
     ret = devm_iio_device_register(&interface->dev, indio_dev);     // Managed iio_device_register. The IIO device registered with this function is automatically unregistered on driver detach
     if (ret) {
         printk(KERN_ERR "iio_device_register failed with error %d\n", ret);
-        iio_triggered_buffer_cleanup(indio_dev);
+        // iio_triggered_buffer_cleanup(indio_dev);
         usb_set_intfdata(interface, NULL);
         usb_put_dev(dev->udev);
         return ret;
@@ -291,11 +320,13 @@ static void usb_cdc_iio_disconnect(struct usb_interface *interface)
         printk(KERN_ERR "Invalid USB CDC IIO device pointer\n");
         return;
     }
+    //     printk("Release kfio buffer\n");
+    //  iio_kfifo_free(dev->indio_dev->buffer);
         printk("Null usb\n");
     usb_set_intfdata(interface, NULL);
         printk("usb_cdc_iio_stop_continuous_read\n");
     usb_cdc_iio_stop_continuous_read(dev);
-    iio_triggered_buffer_cleanup(dev->indio_dev);
+    // iio_triggered_buffer_cleanup(dev->indio_dev);
 }
 
 /**

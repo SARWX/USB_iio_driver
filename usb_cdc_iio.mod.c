@@ -43,15 +43,18 @@ __used __section("__versions") = {
 	{ 0x4128d092, "usb_get_dev" },
 	{ 0xfe988cbb, "__devm_iio_trigger_alloc" },
 	{ 0x38824869, "devm_iio_trigger_register" },
-	{ 0xf864e4b0, "__devm_iio_device_register" },
+	{ 0x186d96e4, "devm_iio_kfifo_buffer_setup_ext" },
 	{ 0x7981293a, "usb_put_dev" },
+	{ 0xf864e4b0, "__devm_iio_device_register" },
+	{ 0x183ef54e, "iio_get_time_ns" },
+	{ 0x761d18bb, "iio_push_to_buffers" },
 	{ 0xbbc6a8fe, "usb_deregister" },
 	{ 0x4b5dd0ff, "iio_trigger_validate_own_device" },
 	{ 0x78a319e7, "module_layout" },
 };
 
-MODULE_INFO(depends, "industrialio");
+MODULE_INFO(depends, "industrialio,kfifo_buf");
 
 MODULE_ALIAS("usb:v0483pF125d*dc*dsc*dp*ic*isc*ip*in*");
 
-MODULE_INFO(srcversion, "84D8236B76F75EC1B86A95B");
+MODULE_INFO(srcversion, "AC86F3B7CF46800D034F6D6");

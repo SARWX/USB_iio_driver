@@ -16,10 +16,10 @@
 #include <linux/iio/trigger_consumer.h>     // Потребители триггеров в IIO
 #include <linux/errno.h>                    // Определения кодов ошибок
 
-
 #define VENDOR_ID 0x0483        // STMicroelectronics 
 #define PRODUCT_ID 0xf125       // 
 #define IIO_BUFFER_SIZE 128     // Размер пакчи изммерений, которая передаётся по USB
+#define DATA_BUFFER_SIZE 128    
 
 static int usb_cdc_iio_read_raw(struct iio_dev *indio_dev,
                                 struct iio_chan_spec const *chan,
@@ -91,6 +91,7 @@ struct usb_cdc_iio_dev {
     struct urb *urb;
     bool reading_active;
     struct iio_buffer *buffer;
+    uint8_t data_buffer[IIO_BUFFER_SIZE];
 };
 
 // Набор функций для работы USB
@@ -124,15 +125,6 @@ static const struct iio_trigger_ops usb_cdc_iio_trigger_ops = {
     .validate_device = iio_trigger_validate_own_device,
 };
 
-/**
- * @brief Структура опций буфера
- */
- static const struct iio_buffer_setup_ops usb_cdc_iio_buffer_setup_ops = {
-    .preenable = NULL,    // Функция, вызываемая перед включением буферизации
-    .postenable = NULL,   // Функция, вызываемая после включения буферизации
-    .predisable = NULL,   // Функция, вызываемая перед выключением буферизации
-    .postdisable = NULL,  // Функция, вызываемая после выключения буферизации
-};
 
 //////////////////////// Блок работы с USB //////////////////////////
 // Завершение URB
@@ -147,13 +139,15 @@ static void usb_cdc_iio_urb_complete(struct urb *urb)
     }
 
     // Добавление данных в буфер
-    iio_push_to_buffers_with_timestamp(dev->indio_dev, dev->buffer, iio_get_time_ns(dev->indio_dev));
-
+    // iio_push_to_buffers_with_timestamp(dev->indio_dev, dev->buffer, iio_get_time_ns(dev->indio_dev));
+    iio_push_to_buffers(dev->indio_dev, dev->data_buffer);
+    
     // Перезапуск URB для непрерывного чтения данных
     if (dev->reading_active == true)
     {
-        if (!usb_submit_urb(urb, GFP_ATOMIC))
-            printk("URB resubmitted\n");                                        ///////////////// ТОЛЬКО ОТЛАДКА
+        if (usb_submit_urb(urb, GFP_ATOMIC) == 0)       // issue an asynchronous transfer request for an endpoint
+            ;
+            // printk("URB resubmitted\n");                                        ///////////////// ТОЛЬКО ОТЛАДКА
     }
 }
 
@@ -169,7 +163,7 @@ static void usb_cdc_iio_start_continuous_read(struct usb_cdc_iio_dev *dev)
     }
 
     usb_fill_bulk_urb(dev->urb, dev->udev, usb_rcvbulkpipe(dev->udev, 1),
-                      dev->buffer, 64, usb_cdc_iio_urb_complete, dev);
+                      dev->data_buffer, 64, usb_cdc_iio_urb_complete, dev);
 
     ret = usb_submit_urb(dev->urb, GFP_KERNEL);
     if (ret) {
@@ -272,7 +266,8 @@ static int usb_cdc_iio_probe(struct usb_interface *interface, const struct usb_d
     //     return -ENOMEM;
     // }
     // Настройка буфера с использованием devm_iio_kfifo_buffer_setup
-    ret = devm_iio_kfifo_buffer_setup(&interface->dev, indio_dev, &usb_cdc_iio_buffer_setup_ops);
+    // ret = devm_iio_kfifo_buffer_setup(&interface->dev, indio_dev, &usb_cdc_iio_buffer_setup_ops);
+    ret = devm_iio_kfifo_buffer_setup(&interface->dev, indio_dev, NULL);
     if (ret) {
         printk(KERN_ERR "Failed to setup kfifo buffer: %d\n", ret);
         usb_put_dev(dev->udev);
@@ -364,8 +359,8 @@ static int usb_cdc_iio_read_raw(struct iio_dev *indio_dev,
      */
         ret = usb_bulk_msg(dev->udev,
                            usb_rcvbulkpipe(dev->udev, 1),
-                           dev->buffer,
-                           sizeof(dev->buffer),
+                           dev->data_buffer,
+                           DATA_BUFFER_SIZE,                                          ///////
                            &actual_length,
                            1000); // Таймаут в миллисекундах
         
@@ -373,7 +368,7 @@ static int usb_cdc_iio_read_raw(struct iio_dev *indio_dev,
             return ret; // Если ошибка (не 0), то вернуть код ошибки
         }
 
-        if (actual_length > sizeof(dev->buffer)) {
+        if (actual_length > DATA_BUFFER_SIZE) {
             return -EIO; // Возвращаем ошибку, если получено больше данных, чем ожидается
         }
 
@@ -382,7 +377,7 @@ static int usb_cdc_iio_read_raw(struct iio_dev *indio_dev,
             return -ENOMEM; // Недостаточно памяти
         }
         if (actual_length >= sizeof(uint8_t)) {
-            *val = *((uint8_t *)dev->buffer); // Assuming dev->buffer holds integer data
+            *val = *((uint8_t *)dev->data_buffer); // Assuming dev->buffer holds integer data
         } else {
             return -EIO; // Data received doesn't match expected size
         }
@@ -403,7 +398,42 @@ static struct usb_driver usb_cdc_iio_driver = {
     .disconnect = usb_cdc_iio_disconnect,
 };
 
-module_usb_driver(usb_cdc_iio_driver);                      // макрос регистрирует USB-драйвер в ядре Linux
-MODULE_AUTHOR("ICV");                                       // макросы добавляют метаданные к модулю, 
-MODULE_DESCRIPTION("USB CDC IIO Driver for osciloscope");   // которые могут быть полезны для 
-MODULE_LICENSE("GPL");                                      // информации о модуле и лицензировании
+
+// Функция инициализации модуля
+static int __init my_module_init(void)
+{
+    int ret;
+    printk(KERN_DEBUG "Initializing module...\n");
+
+    // Регистрация USB драйвера
+    ret = usb_register(&usb_cdc_iio_driver);
+    if (ret)
+    {
+        printk(KERN_ERR "usb_register failed. Error number %d\n", ret);
+        return ret;
+    }
+
+    return 0;
+}
+
+// Функция завершения работы модуля
+static void __exit my_module_exit(void)
+{
+    printk(KERN_DEBUG "Exiting module...\n");
+
+    // Дерегистрация USB драйвера
+    usb_deregister(&usb_cdc_iio_driver);
+}
+
+module_init(my_module_init);
+module_exit(my_module_exit);
+
+MODULE_LICENSE("GPL");
+MODULE_AUTHOR("Your Name");
+MODULE_DESCRIPTION("My USB IIO Driver");
+
+
+// module_usb_driver(usb_cdc_iio_driver);                      // макрос регистрирует USB-драйвер в ядре Linux
+// MODULE_AUTHOR("ICV");                                       // макросы добавляют метаданные к модулю, 
+// MODULE_DESCRIPTION("USB CDC IIO Driver for osciloscope");   // которые могут быть полезны для 
+// MODULE_LICENSE("GPL");                                      // информации о модуле и лицензировании

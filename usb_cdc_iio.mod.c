@@ -6,6 +6,11 @@
 #include <linux/vermagic.h>
 #include <linux/compiler.h>
 
+#ifdef CONFIG_UNWINDER_ORC
+#include <asm/orc_header.h>
+ORC_HEADER;
+#endif
+
 BUILD_SALT;
 BUILD_LTO_INFO;
 
@@ -27,33 +32,57 @@ MODULE_INFO(retpoline, "Y");
 #endif
 
 
-static const struct modversion_info ____versions[]
-__used __section("__versions") = {
-	{ 0xb1ad28e0, "__gnu_mcount_nc" },
-	{ 0x92997ed8, "_printk" },
-	{ 0xefd6cf06, "__aeabi_unwind_cpp_pr0" },
-	{ 0x503d6783, "usb_register_driver" },
-	{ 0xe281a3d2, "usb_bulk_msg" },
-	{ 0x3ea1b6e4, "__stack_chk_fail" },
-	{ 0x8f678b07, "__stack_chk_guard" },
-	{ 0xc5171ad5, "usb_alloc_urb" },
-	{ 0x5dc82014, "usb_submit_urb" },
-	{ 0x8cc133d6, "usb_free_urb" },
-	{ 0xcf6c5808, "devm_iio_device_alloc" },
-	{ 0x4128d092, "usb_get_dev" },
-	{ 0xfe988cbb, "__devm_iio_trigger_alloc" },
-	{ 0x38824869, "devm_iio_trigger_register" },
-	{ 0x186d96e4, "devm_iio_kfifo_buffer_setup_ext" },
-	{ 0x7981293a, "usb_put_dev" },
-	{ 0xf864e4b0, "__devm_iio_device_register" },
-	{ 0x761d18bb, "iio_push_to_buffers" },
-	{ 0xbbc6a8fe, "usb_deregister" },
-	{ 0x4b5dd0ff, "iio_trigger_validate_own_device" },
-	{ 0x78a319e7, "module_layout" },
-};
+
+static const char ____versions[]
+__used __section("__versions") =
+	"\x18\x00\x00\x00\x36\xb4\x7e\x19"
+	"usb_alloc_urb\0\0\0"
+	"\x18\x00\x00\x00\xa4\x65\xe6\x84"
+	"usb_submit_urb\0\0"
+	"\x18\x00\x00\x00\x56\xaa\x34\xe8"
+	"usb_free_urb\0\0\0\0"
+	"\x14\x00\x00\x00\x84\xf8\xad\x6b"
+	"_dev_info\0\0\0"
+	"\x20\x00\x00\x00\x7f\x7a\x3a\xd1"
+	"devm_iio_device_alloc\0\0\0"
+	"\x14\x00\x00\x00\xd8\x13\x7e\x82"
+	"usb_get_dev\0"
+	"\x24\x00\x00\x00\xcb\x6b\xcc\x26"
+	"__devm_iio_trigger_alloc\0\0\0\0"
+	"\x24\x00\x00\x00\x51\x11\x21\x77"
+	"devm_iio_trigger_register\0\0\0"
+	"\x28\x00\x00\x00\xc8\x81\xec\x63"
+	"devm_iio_kfifo_buffer_setup_ext\0"
+	"\x24\x00\x00\x00\x77\x3b\x28\x85"
+	"__devm_iio_device_register\0\0"
+	"\x14\x00\x00\x00\xd0\x44\x78\xe4"
+	"usb_put_dev\0"
+	"\x18\x00\x00\x00\x7b\xc7\x60\xb2"
+	"usb_deregister\0\0"
+	"\x1c\x00\x00\x00\x70\x85\xca\x97"
+	"iio_push_to_buffers\0"
+	"\x2c\x00\x00\x00\xc6\xfa\xb1\x54"
+	"__ubsan_handle_load_invalid_value\0\0\0"
+	"\x28\x00\x00\x00\xb9\x1e\xcd\xe8"
+	"iio_trigger_validate_own_device\0"
+	"\x14\x00\x00\x00\xbb\x6d\xfb\xbd"
+	"__fentry__\0\0"
+	"\x10\x00\x00\x00\x7e\x3a\x2c\x12"
+	"_printk\0"
+	"\x1c\x00\x00\x00\xba\xc2\xf8\xca"
+	"usb_register_driver\0"
+	"\x1c\x00\x00\x00\xca\x39\x82\x5b"
+	"__x86_return_thunk\0\0"
+	"\x18\x00\x00\x00\x67\xcc\xe2\xa8"
+	"usb_bulk_msg\0\0\0\0"
+	"\x1c\x00\x00\x00\xcb\xf6\xfd\xf0"
+	"__stack_chk_fail\0\0\0\0"
+	"\x18\x00\x00\x00\x83\xfa\x0c\xf5"
+	"module_layout\0\0\0"
+	"\x00\x00\x00\x00\x00\x00\x00\x00";
 
 MODULE_INFO(depends, "industrialio,kfifo_buf");
 
 MODULE_ALIAS("usb:v0483pF125d*dc*dsc*dp*ic*isc*ip*in*");
 
-MODULE_INFO(srcversion, "3DA5DB3043EBF0500767EB2");
+MODULE_INFO(srcversion, "5F3599C8796B9C6FC727D5E");

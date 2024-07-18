@@ -1,0 +1,9 @@
+#!/bin/bash
+echo "rmmod"
+sudo rmmod usb_cdc_iio
+echo "clean"
+make clean
+echo "make"
+make
+echo "insmod"
+sudo insmod usb_cdc_iio.ko

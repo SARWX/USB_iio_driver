@@ -203,8 +203,19 @@ static int usb_cdc_iio_probe(struct usb_interface *interface, const struct usb_d
     struct iio_dev *indio_dev;
     int ret = 0;
     static int uniq_id = 0;
+    // USB CDC have 2 interfaces
+    // Interface 0: Communications Class, Abstract (modem) subclass, AT-commands protocol.
+    // Interface 1: CDC Data Class (bulk transactions)
+    // so we will ignore interface 0
+    int iface_num = interface->cur_altsetting->desc.bInterfaceNumber;
 
+    if (iface_num != 1) {
+        dev_info(&interface->dev, "Ignoring interface number: %d\n", iface_num);
+        return -ENODEV; // Do not handle this interface
+    }
 
+    dev_info(&interface->dev, "Handling interface number: %d\n", iface_num);
+    // Handle the interface 0 initialization
     printk(KERN_INFO "Try to allocate mem for indio_dev\n");
     indio_dev = devm_iio_device_alloc(&interface->dev, sizeof(struct usb_cdc_iio_dev));     // Managed iio_device_alloc. iio_dev allocated with this function is automatically freed on driver detach
     if (!indio_dev)
@@ -233,7 +244,7 @@ static int usb_cdc_iio_probe(struct usb_interface *interface, const struct usb_d
 
     //////////// Настроим триггер ////////////
         printk("Try to allocate mem for trigger\n");
-    dev->trig = devm_iio_trigger_alloc(&interface->dev, "trig%s-dev%d", indio_dev->name, uniq_id++); // Выделим память под триггер
+    dev->trig = devm_iio_trigger_alloc(&interface->dev, "trig%s-%d", indio_dev->name, uniq_id++); // Выделим память под триггер
     if (!dev->trig) {
         printk(KERN_INFO "Unsucessful allocation trigger ERROR\n");
         // iio_triggered_buffer_cleanup(indio_dev);

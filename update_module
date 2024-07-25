@@ -1,9 +1,16 @@
 #!/bin/bash
+echo "modprobe"
+sudo modprobe industrialio
+sudo modprobe industrialio-triggered-buffer
+
 echo "rmmod"
 sudo rmmod usb_cdc_iio
+
 echo "clean"
 make clean
+
 echo "make"
 make
+
 echo "insmod"
 sudo insmod usb_cdc_iio.ko

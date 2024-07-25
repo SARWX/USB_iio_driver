@@ -35,10 +35,6 @@ MODULE_INFO(retpoline, "Y");
 
 static const char ____versions[]
 __used __section("__versions") =
-	"\x18\x00\x00\x00\x36\xb4\x7e\x19"
-	"usb_alloc_urb\0\0\0"
-	"\x18\x00\x00\x00\xa4\x65\xe6\x84"
-	"usb_submit_urb\0\0"
 	"\x18\x00\x00\x00\x56\xaa\x34\xe8"
 	"usb_free_urb\0\0\0\0"
 	"\x14\x00\x00\x00\x84\xf8\xad\x6b"
@@ -53,6 +49,8 @@ __used __section("__versions") =
 	"devm_iio_trigger_register\0\0\0"
 	"\x28\x00\x00\x00\xc8\x81\xec\x63"
 	"devm_iio_kfifo_buffer_setup_ext\0"
+	"\x24\x00\x00\x00\x97\x70\x48\x65"
+	"__x86_indirect_thunk_rax\0\0\0\0"
 	"\x24\x00\x00\x00\x77\x3b\x28\x85"
 	"__devm_iio_device_register\0\0"
 	"\x14\x00\x00\x00\xd0\x44\x78\xe4"
@@ -69,14 +67,18 @@ __used __section("__versions") =
 	"__fentry__\0\0"
 	"\x10\x00\x00\x00\x7e\x3a\x2c\x12"
 	"_printk\0"
-	"\x1c\x00\x00\x00\xba\xc2\xf8\xca"
-	"usb_register_driver\0"
 	"\x1c\x00\x00\x00\xca\x39\x82\x5b"
 	"__x86_return_thunk\0\0"
+	"\x1c\x00\x00\x00\xba\xc2\xf8\xca"
+	"usb_register_driver\0"
 	"\x18\x00\x00\x00\x67\xcc\xe2\xa8"
 	"usb_bulk_msg\0\0\0\0"
 	"\x1c\x00\x00\x00\xcb\xf6\xfd\xf0"
 	"__stack_chk_fail\0\0\0\0"
+	"\x18\x00\x00\x00\x36\xb4\x7e\x19"
+	"usb_alloc_urb\0\0\0"
+	"\x18\x00\x00\x00\xa4\x65\xe6\x84"
+	"usb_submit_urb\0\0"
 	"\x18\x00\x00\x00\x83\xfa\x0c\xf5"
 	"module_layout\0\0\0"
 	"\x00\x00\x00\x00\x00\x00\x00\x00";
@@ -85,4 +87,4 @@ MODULE_INFO(depends, "industrialio,kfifo_buf");
 
 MODULE_ALIAS("usb:v0483pF125d*dc*dsc*dp*ic*isc*ip*in*");
 
-MODULE_INFO(srcversion, "5F3599C8796B9C6FC727D5E");
+MODULE_INFO(srcversion, "6490F78D17A7A4BD42BF412");

@@ -16,10 +16,19 @@
 #include <linux/iio/trigger_consumer.h>     // Потребители триггеров в IIO
 #include <linux/errno.h>                    // Определения кодов ошибок
 
+#include <linux/iio/buffer_impl.h>               // Буферизация данных в IIO устройствах
+
+
+#define iio_to_kfifo(r) container_of(r, struct iio_kfifo, buffer)
+
+
 #define VENDOR_ID 0x0483        // STMicroelectronics 
 #define PRODUCT_ID 0xf125       // 
-#define IIO_BUFFER_SIZE 128     // Размер пакчи изммерений, которая передаётся по USB
-#define DATA_BUFFER_SIZE 128    
+#define IIO_BUFFER_SIZE 1024     // Размер пакчи изммерений, которая передаётся по USB
+#define DATA_BUFFER_SIZE 1024    
+#define BYTE_SIZE_OF_MES 1
+
+static int buffer_enabled = 0;  // Пока не придумал как подругому сделать 
 
 static int usb_cdc_iio_read_raw(struct iio_dev *indio_dev,
                                 struct iio_chan_spec const *chan,
@@ -82,7 +91,7 @@ MODULE_DEVICE_TABLE(usb, usb_cdc_id_table);
 /**
  * @brief Наша собственная структура, описывающая устройство, для
  * которого мы разрабатываем драйвер
- */
+ */ 
 struct usb_cdc_iio_dev {
     struct usb_device *udev;
     struct iio_dev *indio_dev;
@@ -98,6 +107,32 @@ struct usb_cdc_iio_dev {
 static void usb_cdc_iio_urb_complete(struct urb *urb);
 static void usb_cdc_iio_start_continuous_read(struct usb_cdc_iio_dev *dev);
 static void usb_cdc_iio_stop_continuous_read(struct usb_cdc_iio_dev *dev);
+
+// Буфер
+static int usb_cdc_iio_buffer_postenable(struct iio_dev *iio_dev);
+static int usb_cdc_iio_buffer_predisable(struct iio_dev *iio_dev);
+static const struct iio_buffer_setup_ops usb_cdc_iio_buffer_setup_ops = {
+	.postenable = &usb_cdc_iio_buffer_postenable,           // POSTENABLE
+	.predisable = &usb_cdc_iio_buffer_predisable,           // PREDISABLE
+};
+
+
+
+static int usb_cdc_iio_buffer_postenable(struct iio_dev *iio_dev)
+{
+    printk(KERN_ERR "We are in postenable function:\n");
+    buffer_enabled = 1;     // Глобальная переменная-флаг устанавливается
+    return(0);
+}
+
+static int usb_cdc_iio_buffer_predisable(struct iio_dev *iio_dev)
+{
+    printk(KERN_ERR "We are in predisable function:\n");
+    buffer_enabled = 0;     // Глобальная переменная-флаг сбрасывается
+    return(0);
+}
+
+
 
 /**
  * @brief Функция для управления триггером
@@ -140,14 +175,48 @@ static void usb_cdc_iio_urb_complete(struct urb *urb)
 
     // Добавление данных в буфер
     // iio_push_to_buffers_with_timestamp(dev->indio_dev, dev->buffer, iio_get_time_ns(dev->indio_dev));
-    iio_push_to_buffers(dev->indio_dev, dev->data_buffer);
+ //   iio_push_to_buffers(dev->indio_dev, dev->data_buffer);
+    // Прямое добавление данных из URB в буфер IIO
+    if (buffer_enabled == 1)
+    {
+   //     printk(KERN_ERR "We are going to use store_to() function:\n");
+        for (int i = 0; i < (IIO_BUFFER_SIZE); i++)
+        {
+            // iio_push_to_buffers(dev->indio_dev, (dev->data_buffer+i*BYTE_SIZE_OF_MES));      // вот эта тема с +i - это арифметика указателей
+            dev->indio_dev->buffer->access->store_to(dev->indio_dev->buffer, (dev->data_buffer+i*BYTE_SIZE_OF_MES));
+ //           int a = dev->indio_dev->buffer->access->write(dev->indio_dev->buffer, (BYTE_SIZE_OF_MES), (dev->data_buffer));
+            // if (a != -14)
+            // {
+            //     printk("Not -14! Copied:   %d", a);
+            // }
+        }
+    }
+    else
+    {
+        for (int i = 0; i < IIO_BUFFER_SIZE; i++)
+        {
+            iio_push_to_buffers(dev->indio_dev, (dev->data_buffer+i*BYTE_SIZE_OF_MES));      // вот эта тема с +i - это арифметика указателей
+            // dev->buffer->access->store_to(dev->buffer, (dev->data_buffer+i*BYTE_SIZE_OF_MES));
+        }
+    }
+
+    // Попробуем вручную добавлять данные
+    // dev->indio_dev.buf
+
+    // struct iio_kfifo *kf = iio_to_kfifo(dev->indio_dev->buffer);      // Если что iio_to_kfifo - это не функция, а макрос, он не должен повлиять на производительность
+	// kfifo_in(&kf->kf, dev->data_buffer, IIO_BUFFER_SIZE);
+
+
+
+    ///////////////////// ВОТ ТУТ ПРОБЛЕМА СКОРЕЕ ВСЕГО ///////////////////////////
+    // dev->indio_dev->buffer->access->write(dev->indio_dev->buffer, IIO_BUFFER_SIZE, dev->data_buffer);
     
     // Перезапуск URB для непрерывного чтения данных
     if (dev->reading_active == true)
     {
         if (usb_submit_urb(urb, GFP_ATOMIC) == 0)       // issue an asynchronous transfer request for an endpoint
             ;
-            // printk("URB resubmitted\n");                                        ///////////////// ТОЛЬКО ОТЛАДКА
+      //      printk("URB resubmitted\n");                                        ///////////////// ТОЛЬКО ОТЛАДКА
     }
 }
 
@@ -156,14 +225,20 @@ static void usb_cdc_iio_start_continuous_read(struct usb_cdc_iio_dev *dev)
 {
     int ret;
     dev->reading_active = true;
+    // EXPERIMENT WITH ENABLE
+    // if (dev->indio_dev->buffer != NULL)
+    // {        
+    //     // Enable
+    //     dev->indio_dev->buffer->access->enable(dev->indio_dev->buffer, dev->indio_dev);
+    // }
     dev->urb = usb_alloc_urb(0, GFP_KERNEL);
     if (!dev->urb) {
         printk(KERN_ERR "Failed to allocate URB\n");
         return;
     }
-
+    // Заполним URB и будем запрашивать данные от end point через него
     usb_fill_bulk_urb(dev->urb, dev->udev, usb_rcvbulkpipe(dev->udev, 1),
-                      dev->data_buffer, 64, usb_cdc_iio_urb_complete, dev);
+                      dev->data_buffer, (IIO_BUFFER_SIZE), usb_cdc_iio_urb_complete, dev);
 
     ret = usb_submit_urb(dev->urb, GFP_KERNEL);
     if (ret) {
@@ -181,6 +256,8 @@ static void usb_cdc_iio_stop_continuous_read(struct usb_cdc_iio_dev *dev)
 {
     dev->reading_active = false;
 }
+
+
 /////////////////////////////////////////////////////////////////////
 
 /**
@@ -268,6 +345,8 @@ static int usb_cdc_iio_probe(struct usb_interface *interface, const struct usb_d
 
 
 
+
+
     // Инициализация буфера
     // // ret = iio_triggered_buffer_setup(indio_dev, NULL, NULL, &usb_cdc_iio_buffer_setup_ops);  // TODO: Вот это на devm
     // indio_dev->buffer = iio_kfifo_allocate();
@@ -278,11 +357,23 @@ static int usb_cdc_iio_probe(struct usb_interface *interface, const struct usb_d
     // }
     // Настройка буфера с использованием devm_iio_kfifo_buffer_setup
     // ret = devm_iio_kfifo_buffer_setup(&interface->dev, indio_dev, &usb_cdc_iio_buffer_setup_ops);
-    ret = devm_iio_kfifo_buffer_setup(&interface->dev, indio_dev, NULL);
+    indio_dev->buffer = NULL;
+    ret = devm_iio_kfifo_buffer_setup(&interface->dev, indio_dev, &usb_cdc_iio_buffer_setup_ops);
     if (ret) {
         printk(KERN_ERR "Failed to setup kfifo buffer: %d\n", ret);
         usb_put_dev(dev->udev);
         return ret;
+    }
+    // Вот сейчас буфер прикреплен к устройству, а значит мы можем получить к нему доступ indio_dev->buffer
+    // Класс, а зачем это надо?
+    // Чтобы установить размер буфера через indio_dev->buffer->access->set_length(indio_dev->buffer, 128)
+    if (indio_dev->buffer != NULL)
+    {
+        indio_dev->buffer->access->set_length(indio_dev->buffer, IIO_BUFFER_SIZE);
+        // indio_dev->buffer->length = IIO_BUFFER_SIZE;
+        
+        // // Enable
+        // indio_dev->buffer->access->enable(indio_dev->buffer, indio_dev);
     }
 
 
@@ -352,6 +443,7 @@ static int usb_cdc_iio_read_raw(struct iio_dev *indio_dev,
 {
     struct usb_cdc_iio_dev *dev = iio_priv(indio_dev);
     int ret, actual_length;
+    static int cnt_usb_read = 0;
 
     switch (mask) {
     case IIO_CHAN_INFO_RAW:
@@ -368,29 +460,39 @@ static int usb_cdc_iio_read_raw(struct iio_dev *indio_dev,
      * @param actual_length - pointer to a location to put the actual length transferred in bytes
      * @param timeout - time in msecs to wait for the message to complete before timing out (if 0 the wait is forever)
      */
-        ret = usb_bulk_msg(dev->udev,
-                           usb_rcvbulkpipe(dev->udev, 1),
-                           dev->data_buffer,
-                           DATA_BUFFER_SIZE,                                          ///////
-                           &actual_length,
-                           1000); // Таймаут в миллисекундах
-        
-        if (ret) {
-            return ret; // Если ошибка (не 0), то вернуть код ошибки
+        if (cnt_usb_read != 0)
+        {
+            *val = *((uint8_t *)dev->data_buffer + (DATA_BUFFER_SIZE - cnt_usb_read));
+            //val++;              // increment array pointer (1 byte)
+            cnt_usb_read--;     // decrement counter
         }
+        else
+        {
+            ret = usb_bulk_msg(dev->udev,
+                            usb_rcvbulkpipe(dev->udev, 1),
+                            dev->data_buffer,
+                            DATA_BUFFER_SIZE,                                          ///////
+                            &actual_length,
+                            1000); // Таймаут в миллисекундах
+            
+            if (ret) {
+                return ret; // Если ошибка (не 0), то вернуть код ошибки
+            }
 
-        if (actual_length > DATA_BUFFER_SIZE) {
-            return -EIO; // Возвращаем ошибку, если получено больше данных, чем ожидается
-        }
+            if (actual_length > DATA_BUFFER_SIZE) {
+                return -EIO; // Возвращаем ошибку, если получено больше данных, чем ожидается
+            }
 
-        // Проверяем, что val имеет достаточный размер
-        if (!val) {
-            return -ENOMEM; // Недостаточно памяти
-        }
-        if (actual_length >= sizeof(uint8_t)) {
-            *val = *((uint8_t *)dev->data_buffer); // Assuming dev->buffer holds integer data
-        } else {
-            return -EIO; // Data received doesn't match expected size
+            // Проверяем, что val имеет достаточный размер
+            if (!val) {
+                return -ENOMEM; // Недостаточно памяти
+            }
+            if (actual_length >= sizeof(uint8_t)) {
+                *val = *((uint8_t *)dev->data_buffer); // Assuming dev->buffer holds integer data
+                cnt_usb_read = DATA_BUFFER_SIZE;
+            } else {
+                return -EIO; // Data received doesn't match expected size
+            }
         }
         return IIO_VAL_INT;
 

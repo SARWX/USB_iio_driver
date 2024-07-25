@@ -1,0 +1,1 @@
+savedcmd_/home/timofei/Novikov/iio_dev/usb_iio_driver/Module.symvers :=  scripts/mod/modpost -M -m -a      -o /home/timofei/Novikov/iio_dev/usb_iio_driver/Module.symvers -T /home/timofei/Novikov/iio_dev/usb_iio_driver/modules.order -i Module.symvers -e 

@@ -1,0 +1,1 @@
+savedcmd_/home/timofei/Novikov/iio_dev/usb_iio_driver/usb_cdc_iio.ko := ld -r -m elf_x86_64 -z noexecstack --no-warn-rwx-segments --build-id=sha1  -T scripts/module.lds -o /home/timofei/Novikov/iio_dev/usb_iio_driver/usb_cdc_iio.ko /home/timofei/Novikov/iio_dev/usb_iio_driver/usb_cdc_iio.o /home/timofei/Novikov/iio_dev/usb_iio_driver/usb_cdc_iio.mod.o

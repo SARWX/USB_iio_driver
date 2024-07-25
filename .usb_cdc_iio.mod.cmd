@@ -1,0 +1,1 @@
+savedcmd_/home/timofei/Novikov/iio_dev/usb_iio_driver/usb_cdc_iio.mod := printf '%s\n'   usb_cdc_iio.o | awk '!x[$$0]++ { print("/home/timofei/Novikov/iio_dev/usb_iio_driver/"$$0) }' > /home/timofei/Novikov/iio_dev/usb_iio_driver/usb_cdc_iio.mod

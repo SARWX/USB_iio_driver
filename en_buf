@@ -1,0 +1,9 @@
+#!/bin/bash
+echo "Enable scan element"
+echo 1 > /sys/bus/iio/devices/iio\:device0/scan_elements/in_voltage_en 
+
+echo "Enable channel in_voltage_en"
+echo 1 > /sys/bus/iio/devices/iio\:device0/buffer0/in_voltage_en 
+
+echo "Enable buffer"
+echo 1 > /sys/bus/iio/devices/iio\:device0/buffer0/enable

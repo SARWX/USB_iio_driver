@@ -1,0 +1,1 @@
+savedcmd_/home/timofei/Novikov/iio_dev/usb_iio_driver/modules.order := {   echo /home/timofei/Novikov/iio_dev/usb_iio_driver/usb_cdc_iio.o; :; } > /home/timofei/Novikov/iio_dev/usb_iio_driver/modules.order

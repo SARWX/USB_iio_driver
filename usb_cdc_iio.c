@@ -27,6 +27,7 @@
 #define IIO_BUFFER_SIZE 1024     // Размер пакчи изммерений, которая передаётся по USB
 #define DATA_BUFFER_SIZE 1024    
 #define BYTE_SIZE_OF_MES 1
+#define IIO_CHAN_INFO_SAMP_FREQ 250000 // Hz
 
 static int buffer_enabled = 0;  // Пока не придумал как подругому сделать 
 
@@ -58,9 +59,33 @@ static const struct iio_info usb_cdc_iio_info = {			// Вот в этой стр
  */
 static const struct iio_chan_spec usb_cdc_iio_channels[] = {
 	{
+        // Эти 4 поля снизу создадут канал in_voltage0_raw
 		.type = IIO_VOLTAGE,								// По нашему каналу будут передаваться значения напряжения
 		.info_mask_separate = BIT(IIO_CHAN_INFO_RAW),		// Данные не надо объединять, канал возвращает raw данные
-        .scan_index = 0,
+        .indexed = 1,   // Индекс есть
+        .channel = 0,   // Индекс = 0
+        // Добавим информацию о частоте семплирования
+        .info_mask_shared_by_dir = BIT(IIO_CHAN_INFO_SAMP_FREQ),
+        // .extend_name = "channel_0",
+        .scan_index = 0,    // Первый канал (четные индексы в буфере)
+        .scan_type = {
+            .sign = 'u',            // беззнаковый
+            .realbits = 8,          // реальное количество бит данных
+            .storagebits = 8,       // количество бит для хранения
+            .shift = 0,             // сдвиг (если требуется)
+            .endianness = IIO_LE,   // порядок байт (little-endian) 
+	    }
+    },
+    {
+		.type = IIO_VOLTAGE,								// По нашему каналу будут передаваться значения напряжения
+		.info_mask_separate = BIT(IIO_CHAN_INFO_RAW),		// Данные не надо объединять, канал возвращает raw данные
+        .indexed = 1,
+        // .modified = 1,
+        // .channel2 = 10,
+        .channel = 1,
+        .info_mask_shared_by_dir = BIT(IIO_CHAN_INFO_SAMP_FREQ),
+        // .extend_name = "channel_1",
+        .scan_index = 1,    // Второй канал (нечетные индексы в буфере) 
         .scan_type = {
             .sign = 'u',            // беззнаковый
             .realbits = 8,          // реальное количество бит данных
@@ -99,7 +124,7 @@ struct usb_cdc_iio_dev {
     // char buffer[64]; // Пример объявления буфера размером 64 байта, замените на нужный вам размер
     struct urb *urb;
     bool reading_active;
-    struct iio_buffer *buffer;
+    struct iio_buffer *buffer, *buffer2;
     uint8_t data_buffer[IIO_BUFFER_SIZE];
 };
 
@@ -180,10 +205,10 @@ static void usb_cdc_iio_urb_complete(struct urb *urb)
     if (buffer_enabled == 1)
     {
    //     printk(KERN_ERR "We are going to use store_to() function:\n");
-        for (int i = 0; i < (IIO_BUFFER_SIZE); i++)
+        for (int i = 0; i < (IIO_BUFFER_SIZE/2); i++)       // Тут один push на самом деле 2 измеренеия сразу запихнет, потому что он какбы устройство обслуживает, а не канал
         {
-            // iio_push_to_buffers(dev->indio_dev, (dev->data_buffer+i*BYTE_SIZE_OF_MES));      // вот эта тема с +i - это арифметика указателей
-            dev->indio_dev->buffer->access->store_to(dev->indio_dev->buffer, (dev->data_buffer+i*BYTE_SIZE_OF_MES));
+  //          iio_push_to_buffers(dev->indio_dev, (dev->data_buffer+i*BYTE_SIZE_OF_MES*2));      // вот эта тема с +i - это арифметика указателей
+            dev->indio_dev->buffer->access->store_to(dev->indio_dev->buffer, (dev->data_buffer+i*BYTE_SIZE_OF_MES*2));
  //           int a = dev->indio_dev->buffer->access->write(dev->indio_dev->buffer, (BYTE_SIZE_OF_MES), (dev->data_buffer));
             // if (a != -14)
             // {
@@ -358,6 +383,7 @@ static int usb_cdc_iio_probe(struct usb_interface *interface, const struct usb_d
     // Настройка буфера с использованием devm_iio_kfifo_buffer_setup
     // ret = devm_iio_kfifo_buffer_setup(&interface->dev, indio_dev, &usb_cdc_iio_buffer_setup_ops);
     indio_dev->buffer = NULL;
+    
     ret = devm_iio_kfifo_buffer_setup(&interface->dev, indio_dev, &usb_cdc_iio_buffer_setup_ops);
     if (ret) {
         printk(KERN_ERR "Failed to setup kfifo buffer: %d\n", ret);

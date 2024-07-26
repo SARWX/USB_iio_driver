@@ -87,4 +87,4 @@ MODULE_INFO(depends, "industrialio,kfifo_buf");
 
 MODULE_ALIAS("usb:v0483pF125d*dc*dsc*dp*ic*isc*ip*in*");
 
-MODULE_INFO(srcversion, "6490F78D17A7A4BD42BF412");
+MODULE_INFO(srcversion, "F55CB8CA5E04CD3B108CA92");
